@@ -460,3 +460,239 @@ vector<Move> Board::pseudoLegal(Color col) const {
     return mv;
 }
 
+vector<Move> Board::legalMoves(Color col) const {
+    auto all=pseudoLegal(col); vector<Move> legal;
+    Color opp=(Color)(-(int)col);
+    for(auto& m:all){
+        if(m.castle){
+            if(inCheck(col)) continue;
+            if(isAttacked(m.fr,(m.fc+m.tc)/2,opp)) continue;
+            if(isAttacked(m.fr,m.tc,opp)) continue;
+        }
+        Board nb(*this); nb.applyMove(m);
+        if(!nb.inCheck(col)) legal.push_back(m);
+    }
+    return legal;
+}
+
+static char fileChar(int c){ return (char)('a'+c); }
+static char rankChar(int r){ return (char)('1'+r); }
+static string squareName(int r,int c){
+    string s;
+    s+=fileChar(c);
+    s+=rankChar(r);
+    return s;
+}
+
+static char pieceLetter(PieceType t){
+    switch(t){
+        case KING:   return 'K';
+        case QUEEN:  return 'Q';
+        case ROOK:   return 'R';
+        case BISHOP: return 'B';
+        case KNIGHT: return 'N';
+        default:     return '\0';
+    }
+}
+
+string Board::notation(const Move& m) const {
+    if(m.isResign()) return "resign";
+    Piece* p=at(m.fr,m.fc);
+    if(!p) return m.str();
+
+    Color col=p->getColor();
+    PieceType typ=p->getType();
+    Color opp=(Color)(-(int)col);
+
+    string s;
+    if(m.castle){
+        s=(m.tc==6)?"0-0":"0-0-0";
+    } else {
+        bool capture=m.ep||at(m.tr,m.tc);
+        char letter=pieceLetter(typ);
+        if(letter) s+=letter;
+
+        if(typ!=PAWN){
+            bool sameFile=false, sameRank=false, ambiguous=false;
+            for(const auto& other:legalMoves(col)){
+                if(other.fr==m.fr&&other.fc==m.fc&&other.tr==m.tr&&other.tc==m.tc) continue;
+                if(other.tr!=m.tr||other.tc!=m.tc) continue;
+                Piece* op=at(other.fr,other.fc);
+                if(!op||op->getType()!=typ||op->getColor()!=col) continue;
+                ambiguous=true;
+                if(other.fc==m.fc) sameFile=true;
+                if(other.fr==m.fr) sameRank=true;
+            }
+            if(ambiguous){
+                if(!sameFile) s+=fileChar(m.fc);
+                else if(!sameRank) s+=rankChar(m.fr);
+                else {
+                    s+=fileChar(m.fc);
+                    s+=rankChar(m.fr);
+                }
+            }
+        } else if(capture){
+            s+=fileChar(m.fc);
+        }
+
+        if(capture) s+='x';
+        s+=squareName(m.tr,m.tc);
+        if(m.promo!=EMPTY_P){
+            s+='=';
+            s+=pieceLetter(m.promo);
+        }
+    }
+
+    Board nb(*this);
+    nb.applyMove(m);
+    if(nb.inCheck(opp)){
+        s+=nb.legalMoves(opp).empty()?'#':'+';
+    }
+    return s;
+}
+
+// Piece-square tables are written from White's point of view.
+static const int PVAL[]={0,100,320,330,500,900,20000};
+static const int PAWN_T[8][8]={{0,0,0,0,0,0,0,0},{50,50,50,50,50,50,50,50},{10,10,20,30,30,20,10,10},{5,5,10,25,25,10,5,5},{0,0,0,20,20,0,0,0},{5,-5,-10,0,0,-10,-5,5},{5,10,10,-20,-20,10,10,5},{0,0,0,0,0,0,0,0}};
+static const int KNIG_T[8][8]={{-50,-40,-30,-30,-30,-30,-40,-50},{-40,-20,0,0,0,0,-20,-40},{-30,0,10,15,15,10,0,-30},{-30,5,15,20,20,15,5,-30},{-30,0,15,20,20,15,0,-30},{-30,5,10,15,15,10,5,-30},{-40,-20,0,5,5,0,-20,-40},{-50,-40,-30,-30,-30,-30,-40,-50}};
+static const int BISH_T[8][8]={{-20,-10,-10,-10,-10,-10,-10,-20},{-10,0,0,0,0,0,0,-10},{-10,0,5,10,10,5,0,-10},{-10,5,5,10,10,5,5,-10},{-10,0,10,10,10,10,0,-10},{-10,10,10,10,10,10,10,-10},{-10,5,0,0,0,0,5,-10},{-20,-10,-10,-10,-10,-10,-10,-20}};
+static const int ROOK_T[8][8]={{0,0,0,0,0,0,0,0},{5,10,10,10,10,10,10,5},{-5,0,0,0,0,0,0,-5},{-5,0,0,0,0,0,0,-5},{-5,0,0,0,0,0,0,-5},{-5,0,0,0,0,0,0,-5},{-5,0,0,0,0,0,0,-5},{0,0,0,5,5,0,0,0}};
+static const int QUEE_T[8][8]={{-20,-10,-10,-5,-5,-10,-10,-20},{-10,0,0,0,0,0,0,-10},{-10,0,5,5,5,5,0,-10},{-5,0,5,5,5,5,0,-5},{0,0,5,5,5,5,0,-5},{-10,5,5,5,5,5,0,-10},{-10,0,5,0,0,0,0,-10},{-20,-10,-10,-5,-5,-10,-10,-20}};
+static const int KING_T[8][8]={{-30,-40,-40,-50,-50,-40,-40,-30},{-30,-40,-40,-50,-50,-40,-40,-30},{-30,-40,-40,-50,-50,-40,-40,-30},{-30,-40,-40,-50,-50,-40,-40,-30},{-20,-30,-30,-40,-40,-30,-30,-20},{-10,-20,-20,-20,-20,-20,-20,-10},{20,20,0,0,0,0,20,20},{20,30,10,0,0,10,30,20}};
+
+static int posScore(PieceType t, int r, int c, Color col){
+    int ti=(col==WHITE)?(7-r):r;
+    switch(t){
+        case PAWN:   return PAWN_T[ti][c];
+        case KNIGHT: return KNIG_T[ti][c];
+        case BISHOP: return BISH_T[ti][c];
+        case ROOK:   return ROOK_T[ti][c];
+        case QUEEN:  return QUEE_T[ti][c];
+        case KING:   return KING_T[ti][c];
+        default:     return 0;
+    }
+}
+
+int Board::evaluate() const {
+    int score=0;
+    for(int r=0;r<8;r++) for(int c=0;c<8;c++){
+        auto* p=grid[r][c].get(); if(!p) continue;
+        score+=(int)p->getColor()*(PVAL[p->getType()]+posScore(p->getType(),r,c,p->getColor()));
+    }
+    return score;
+}
+
+class Player {
+protected:
+    Color  color;
+    string name;
+public:
+    Player(Color c, const string& n): color(c), name(n) {}
+    virtual ~Player() = default;
+    Color         getColor() const { return color; }
+    const string& getName()  const { return name;  }
+    virtual Move  getMove(const Board& board) = 0;
+};
+
+static string cleanNotation(string s){
+    s.erase(remove_if(s.begin(),s.end(),[](unsigned char ch){
+        return ch=='+'||ch=='#'||ch=='!'||ch=='?'||ch=='.';
+    }),s.end());
+    s.erase(remove_if(s.begin(),s.end(),[](unsigned char ch){
+        return ch==' '||ch=='\t'||ch=='\r'||ch=='\n';
+    }),s.end());
+    if(!s.empty()&&s[0]>='1'&&s[0]<='9'){
+        size_t pos=0;
+        while(pos<s.size()&&isdigit(static_cast<unsigned char>(s[pos]))) pos++;
+        s.erase(0,pos);
+    }
+    replace(s.begin(),s.end(),'O','0');
+    replace(s.begin(),s.end(),'o','0');
+    return s;
+}
+
+static string lowerText(string s){
+    for(char& ch:s) ch=(char)tolower(static_cast<unsigned char>(ch));
+    return s;
+}
+
+static PieceType promotionFromChar(char ch){
+    switch(tolower(static_cast<unsigned char>(ch))){
+        case 'q': return QUEEN;
+        case 'r': return ROOK;
+        case 'b': return BISHOP;
+        case 'n': return KNIGHT;
+        default:  return EMPTY_P;
+    }
+}
+
+static bool coordinateMatches(const string& inp, const Move& lm, const Board& board){
+    if(inp.size()<4) return false;
+    string s=lowerText(inp);
+    int fc=s[0]-'a', fr=s[1]-'1', tc=s[2]-'a', tr=s[3]-'1';
+    if(lm.fr!=fr||lm.fc!=fc||lm.tr!=tr||lm.tc!=tc) return false;
+
+    Piece* p=board.at(lm.fr,lm.fc);
+    bool isPromo=p&&p->getType()==PAWN&&(lm.tr==0||lm.tr==7);
+    if(!isPromo) return s.size()==4;
+
+    size_t pieceIndex=(s.size()>=6&&s[4]=='=')?5:4;
+    if(pieceIndex>=s.size()) return false;
+
+    PieceType pp=promotionFromChar(s[pieceIndex]);
+    return pp!=EMPTY_P&&lm.promo==pp;
+}
+
+class HumanPlayer : public Player {
+public:
+    HumanPlayer(Color c, const string& n): Player(c, n) {}
+
+    Move getMove(const Board& board) override {
+        auto legal=board.legalMoves(color);
+        while(true){
+            cout<<name<<"'s turn ("<<(color==WHITE?"White":"Black")<<"). Enter move: ";
+            string inp;
+            if(!(cin>>inp)){
+                cout<<"\n  Input ended. Resigning.\n";
+                return Move::resign();
+            }
+            if(inp=="resign") return Move::resign();
+
+            string cleaned=cleanNotation(inp);
+            for(auto& lm:legal){
+                if(cleaned==cleanNotation(board.notation(lm))||coordinateMatches(inp,lm,board))
+                    return lm;
+            }
+            cout<<"  Illegal move. Use e4, Nf3, Bxc6, 0-0, or e8=Q. Promotion needs Q, R, B, or N.\n";
+        }
+    }
+};
+
+class AIPlayer : public Player {
+    int depth;
+    static constexpr int INF=1'000'000;
+
+    int minimax(const Board& b, int d, int alpha, int beta, bool maxing) const {
+        if(d<=0) return b.evaluate();
+        Color col=maxing?WHITE:BLACK;
+        auto moves=b.legalMoves(col);
+        if(moves.empty()) return b.inCheck(col)?(maxing?-INF:INF):0;
+
+        if(maxing){
+            int best=-INF;
+            for(auto& m:moves){ Board nb(b); nb.applyMove(m);
+                best=max(best,minimax(nb,d-1,alpha,beta,false));
+                alpha=max(alpha,best); if(beta<=alpha) break; }
+            return best;
+        } else {
+            int best=INF;
+            for(auto& m:moves){ Board nb(b); nb.applyMove(m);
+                best=min(best,minimax(nb,d-1,alpha,beta,true));
+                beta=min(beta,best); if(beta<=alpha) break; }
+            return best;
+        }
+    }
+
+public:
+    AIPlayer(Color c, int d): Player(c,"AI"), depth(max(1,d)) {}
+
