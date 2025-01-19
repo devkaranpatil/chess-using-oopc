@@ -696,3 +696,233 @@ class AIPlayer : public Player {
 public:
     AIPlayer(Color c, int d): Player(c,"AI"), depth(max(1,d)) {}
 
+    Move getMove(const Board& board) override {
+        cout<<"  "<<(color==WHITE?"White":"Black")<<" AI is thinking...\n";
+        auto moves=board.legalMoves(color);
+        if(moves.empty()){
+            cout<<"  AI has no legal moves.\n";
+            return Move::resign();
+        }
+        Move best=moves[0]; int bv=(color==WHITE)?-INF:INF;
+        for(auto& m:moves){
+            Board nb(board); nb.applyMove(m);
+            int v=minimax(nb,depth-1,-INF,INF,color!=WHITE);
+            if(color==WHITE?v>bv:v<bv){ bv=v; best=m; }
+        }
+        cout<<"  AI plays: "<<board.notation(best)<<"\n\n";
+        return best;
+    }
+};
+
+static void printGeneralRules(){
+    cout<<"\n=== General Chess Rules ===\n";
+    cout<<"Goal: checkmate the enemy king so it is attacked and has no legal escape.\n";
+    cout<<"White moves first. Players alternate one legal move at a time.\n";
+    cout<<"You may not make a move that leaves your own king in check.\n";
+    cout<<"Checkmate wins the game. Stalemate is a draw.\n";
+    cout<<"A pawn that reaches the last rank must promote to a queen, rook, bishop, or knight.\n";
+    cout<<"Castling and en-passant are allowed only when their normal chess conditions are met.\n\n";
+
+    cout<<"Piece movement:\n";
+    cout<<"  Pawn: moves forward one square, captures diagonally, and can move two squares from its start.\n";
+    cout<<"  Knight: moves in an L shape and can jump over pieces.\n";
+    cout<<"  Bishop: moves diagonally any number of squares.\n";
+    cout<<"  Rook: moves horizontally or vertically any number of squares.\n";
+    cout<<"  Queen: combines rook and bishop movement.\n";
+    cout<<"  King: moves one square in any direction.\n\n";
+}
+
+class Game {
+    Board                  board;
+    unique_ptr<Player>     players[2]; // [0]=white  [1]=black
+    Color                  viewBottom=WHITE;
+    bool                   flipBoardByTurn=false;
+
+    Player& current(){ return *players[board.getTurn()==WHITE?0:1]; }
+
+    void clearBadInput(){
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+
+    char readCharOrDefault(char fallback){
+        char value;
+        if(cin>>value) return value;
+        clearBadInput();
+        return fallback;
+    }
+
+    int readIntOrDefault(int fallback){
+        int value;
+        if(cin>>value) return value;
+        clearBadInput();
+        return fallback;
+    }
+
+    string readStringOrDefault(const string& fallback){
+        string value;
+        if(cin>>value) return value;
+        clearBadInput();
+        return fallback;
+    }
+
+    void printBanner(){
+        cout<<"==============================\n";
+        cout<<"  Chess made using Oopc\n";
+        cout<<"  Console board mode\n";
+        cout<<"==============================\n\n";
+    }
+
+    void showRules(){
+        printGeneralRules();
+    }
+
+    void setupSinglePlayer(){
+        cout<<"Play as (w)hite or (b)lack? ";
+        char ch=readCharOrDefault('w');
+        Color human=(tolower(static_cast<unsigned char>(ch))=='b')?BLACK:WHITE;
+
+        cout<<"Your name: ";
+        string nm=readStringOrDefault("Player");
+
+        cout<<"Difficulty (1=easy  2=medium  3=hard): ";
+        int diff=readIntOrDefault(1);
+        diff=max(1,min(3,diff));
+        int aiDepth=diff+1; // 2, 3, or 4 plies
+
+        if(human==WHITE){
+            players[0]=make_unique<HumanPlayer>(WHITE,nm);
+            players[1]=make_unique<AIPlayer>(BLACK,aiDepth);
+        } else {
+            players[0]=make_unique<AIPlayer>(WHITE,aiDepth);
+            players[1]=make_unique<HumanPlayer>(BLACK,nm);
+        }
+        viewBottom=human;
+        flipBoardByTurn=false;
+    }
+
+    void setupTwoPlayers(){
+        cout<<"White player name: "; string n1=readStringOrDefault("White");
+        cout<<"Black player name: "; string n2=readStringOrDefault("Black");
+        players[0]=make_unique<HumanPlayer>(WHITE,n1);
+        players[1]=make_unique<HumanPlayer>(BLACK,n2);
+        viewBottom=WHITE;
+        flipBoardByTurn=true;
+    }
+
+public:
+    void setup(){
+        printBanner();
+        int mode=1;
+        while(true){
+            cout<<"Select mode:\n";
+            cout<<"  1. Single Player (vs AI)\n";
+            cout<<"  2. Two Players (local)\n";
+            cout<<"  3. Rules\n";
+            cout<<"Choice: ";
+            mode=readIntOrDefault(1);
+            cout<<"\n";
+            if(mode==3){
+                showRules();
+                continue;
+            }
+            break;
+        }
+        if(mode==2) setupTwoPlayers();
+        else        setupSinglePlayer();
+        board.init();
+        cout<<"\nMove examples: e4 | Nf3 | Bxc6 | 0-0 | e8=Q | e7e8n | Type 'resign' to quit\n\n";
+    }
+
+    void run(){
+        setup();
+        while(true){
+            Color cur=board.getTurn();
+            if(flipBoardByTurn) viewBottom=cur;
+            board.print(viewBottom);
+            string who=(cur==WHITE)?"White":"Black";
+
+            auto legal=board.legalMoves(cur);
+            if(legal.empty()){
+                if(board.inCheck(cur))
+                    cout<<"  CHECKMATE!  "<<(cur==WHITE?"Black":"White")<<" wins!\n";
+                else
+                    cout<<"  STALEMATE!  It's a draw.\n";
+                break;
+            }
+            if(board.inCheck(cur))
+                cout<<"  *** "<<who<<" is in CHECK! ***\n";
+
+            Move m=current().getMove(board);
+            if(m.isResign()){
+                cout<<"  "<<current().getName()<<" resigns!\n";
+                break;
+            }
+            board.applyMove(m);
+        }
+        cout<<"\nThanks for playing!\n";
+    }
+};
+
+#ifdef _WIN32
+class WindowChessGame {
+    static constexpr int SQ=80;
+    static constexpr int LEFT=44;
+    static constexpr int TOP=44;
+    static constexpr int BOARD=SQ*8;
+    static constexpr int WIN_W=LEFT*2+BOARD+220;
+    static constexpr int WIN_H=TOP*2+BOARD+92;
+
+    Board board;
+    HWND hwnd=nullptr;
+    bool twoPlayer=false;
+    bool gameOver=false;
+    Color humanColor=WHITE;
+    Color viewBottom=WHITE;
+    int aiDepth=2;
+    int selectedR=-1,selectedC=-1;
+    vector<Move> selectedMoves;
+    vector<Move> pendingPromotionMoves;
+    string status="White to move.";
+
+    static LRESULT CALLBACK StaticProc(HWND h, UINT msg, WPARAM wp, LPARAM lp){
+        WindowChessGame* self=nullptr;
+        if(msg==WM_NCCREATE){
+            auto* cs=reinterpret_cast<CREATESTRUCT*>(lp);
+            self=reinterpret_cast<WindowChessGame*>(cs->lpCreateParams);
+            SetWindowLongPtr(h,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(self));
+            self->hwnd=h;
+        } else {
+            self=reinterpret_cast<WindowChessGame*>(GetWindowLongPtr(h,GWLP_USERDATA));
+        }
+        return self?self->proc(msg,wp,lp):DefWindowProc(h,msg,wp,lp);
+    }
+
+    static string colorName(Color c){ return c==WHITE?"White":"Black"; }
+
+    static int readIntOrDefault(int fallback){
+        int value;
+        if(cin>>value) return value;
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(),'\n');
+        return fallback;
+    }
+
+    static char readCharOrDefault(char fallback){
+        char value;
+        if(cin>>value) return value;
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(),'\n');
+        return fallback;
+    }
+
+    static void showRules(){
+        printGeneralRules();
+    }
+
+    void setup(){
+        cout<<"==============================\n";
+        cout<<"  Chess made using Oopc\n";
+        cout<<"  Graphical board mode\n";
+        cout<<"==============================\n\n";
+
