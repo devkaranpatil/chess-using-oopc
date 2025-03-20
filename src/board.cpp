@@ -127,3 +127,46 @@ bool Board::isAttacked(int r, int c, Color by) const {
             break; } nr+=dr; nc_+=dc; } }
     // King
     for(auto d:initializer_list<pair<int,int>>
+            {{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}}){
+        int dr=d.first, dc=d.second;
+        int nr=r+dr,nc_=c+dc;
+        if(inBounds(nr,nc_)){ auto* p=grid[nr][nc_].get();
+            if(p&&p->getColor()==by&&p->getType()==KING) return true; } }
+    return false;
+}
+
+bool Board::inCheck(Color col) const {
+    for(int r=0;r<8;r++) for(int c=0;c<8;c++){
+        auto* p=grid[r][c].get();
+        if(p&&p->getColor()==col&&p->getType()==KING)
+            return isAttacked(r,c,(Color)(-(int)col));
+    }
+    return false;
+}
+
+vector<Move> Board::pseudoLegal(Color col) const {
+    vector<Move> mv;
+    for(int r=0;r<8;r++) for(int c=0;c<8;c++){
+        auto* p=grid[r][c].get();
+        if(p&&p->getColor()==col){
+            auto pm=p->getCandidates(*this,r,c);
+            mv.insert(mv.end(),pm.begin(),pm.end());
+        }
+    }
+    return mv;
+}
+
+vector<Move> Board::legalMoves(Color col) const {
+    auto all=pseudoLegal(col); vector<Move> legal;
+    Color opp=(Color)(-(int)col);
+    for(auto& m:all){
+        if(m.castle){
+            if(inCheck(col)) continue;
+            if(isAttacked(m.fr,(m.fc+m.tc)/2,opp)) continue;
+            if(isAttacked(m.fr,m.tc,opp)) continue;
+        }
+        Board nb(*this); nb.applyMove(m);
+        if(!nb.inCheck(col)) legal.push_back(m);
+    }
+    return legal;
+}
