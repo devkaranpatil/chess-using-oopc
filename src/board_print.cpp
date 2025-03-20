@@ -37,3 +37,29 @@ void Board::print(Color bottomColor) const {
     for(int c=0;c<8;c++) sep+="-------+";
     cout<<sep<<"\n";
 
+    for(int dr=0;dr<8;dr++){
+        int r=bottomColor==WHITE?7-dr:dr;
+        vector<vector<string>> cells;
+        for(int dc=0;dc<8;dc++){
+            int c=bottomColor==WHITE?dc:7-dc;
+            cells.push_back(pieceModel(grid[r][c].get(),(r+c)%2));
+        }
+
+        for(int line=0;line<5;line++){
+            if(line==2) cout<<" "<<(r+1)<<"  |";
+            else        cout<<"    |";
+            for(int dc=0;dc<8;dc++) cout<<cells[dc][line]<<"|";
+            if(line==2) cout<<" "<<(r+1);
+            cout<<"\n";
+        }
+        cout<<sep<<"\n";
+    }
+
+    cout<<"      ";
+    for(int dc=0;dc<8;dc++){
+        int c=bottomColor==WHITE?dc:7-dc;
+        cout<<"   "<<(char)('a'+c)<<"    ";
+    }
+    cout<<"\n";
+    cout<<"    View: "<<(bottomColor==WHITE?"White":"Black")<<" at bottom. Pieces show P/N/B/R/Q/K and W/B color.\n\n";
+}
