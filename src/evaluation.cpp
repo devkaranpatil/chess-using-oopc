@@ -10,3 +10,24 @@ static const int ROOK_T[8][8]={{0,0,0,0,0,0,0,0},{5,10,10,10,10,10,10,5},{-5,0,0
 static const int QUEE_T[8][8]={{-20,-10,-10,-5,-5,-10,-10,-20},{-10,0,0,0,0,0,0,-10},{-10,0,5,5,5,5,0,-10},{-5,0,5,5,5,5,0,-5},{0,0,5,5,5,5,0,-5},{-10,5,5,5,5,5,0,-10},{-10,0,5,0,0,0,0,-10},{-20,-10,-10,-5,-5,-10,-10,-20}};
 static const int KING_T[8][8]={{-30,-40,-40,-50,-50,-40,-40,-30},{-30,-40,-40,-50,-50,-40,-40,-30},{-30,-40,-40,-50,-50,-40,-40,-30},{-30,-40,-40,-50,-50,-40,-40,-30},{-20,-30,-30,-40,-40,-30,-30,-20},{-10,-20,-20,-20,-20,-20,-20,-10},{20,20,0,0,0,0,20,20},{20,30,10,0,0,10,30,20}};
 
+static int posScore(PieceType t, int r, int c, Color col){
+    int ti=(col==WHITE)?(7-r):r;
+    switch(t){
+        case PAWN:   return PAWN_T[ti][c];
+        case KNIGHT: return KNIG_T[ti][c];
+        case BISHOP: return BISH_T[ti][c];
+        case ROOK:   return ROOK_T[ti][c];
+        case QUEEN:  return QUEE_T[ti][c];
+        case KING:   return KING_T[ti][c];
+        default:     return 0;
+    }
+}
+
+int Board::evaluate() const {
+    int score=0;
+    for(int r=0;r<8;r++) for(int c=0;c<8;c++){
+        auto* p=grid[r][c].get(); if(!p) continue;
+        score+=(int)p->getColor()*(PVAL[p->getType()]+posScore(p->getType(),r,c,p->getColor()));
+    }
+    return score;
+}
