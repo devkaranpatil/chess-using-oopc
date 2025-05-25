@@ -72,3 +72,63 @@ void Game::setupSinglePlayer(){
     flipBoardByTurn=false;
 }
 
+void Game::setupTwoPlayers(){
+    cout<<"White player name: "; string n1=readStringOrDefault("White");
+    cout<<"Black player name: "; string n2=readStringOrDefault("Black");
+    players[0]=make_unique<HumanPlayer>(WHITE,n1);
+    players[1]=make_unique<HumanPlayer>(BLACK,n2);
+    viewBottom=WHITE;
+    flipBoardByTurn=true;
+}
+
+void Game::setup(){
+    printBanner();
+    int mode=1;
+    while(true){
+        cout<<"Select mode:\n";
+        cout<<"  1. Single Player (vs AI)\n";
+        cout<<"  2. Two Players (local)\n";
+        cout<<"  3. Rules\n";
+        cout<<"Choice: ";
+        mode=readIntOrDefault(1);
+        cout<<"\n";
+        if(mode==3){
+            showRules();
+            continue;
+        }
+        break;
+    }
+    if(mode==2) setupTwoPlayers();
+    else        setupSinglePlayer();
+    board.init();
+    cout<<"\nMove examples: e4 | Nf3 | Bxc6 | 0-0 | e8=Q | e7e8n | Type 'resign' to quit\n\n";
+}
+
+void Game::run(){
+    setup();
+    while(true){
+        Color cur=board.getTurn();
+        if(flipBoardByTurn) viewBottom=cur;
+        board.print(viewBottom);
+        string who=(cur==WHITE)?"White":"Black";
+
+        auto legal=board.legalMoves(cur);
+        if(legal.empty()){
+            if(board.inCheck(cur))
+                cout<<"  CHECKMATE!  "<<(cur==WHITE?"Black":"White")<<" wins!\n";
+            else
+                cout<<"  STALEMATE!  It's a draw.\n";
+            break;
+        }
+        if(board.inCheck(cur))
+            cout<<"  *** "<<who<<" is in CHECK! ***\n";
+
+        Move m=current().getMove(board);
+        if(m.isResign()){
+            cout<<"  "<<current().getName()<<" resigns!\n";
+            break;
+        }
+        board.applyMove(m);
+    }
+    cout<<"\nThanks for playing!\n";
+}
