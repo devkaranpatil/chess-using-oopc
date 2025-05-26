@@ -219,3 +219,83 @@ void WindowChessGame::handleKey(WPARAM key){
         return;
     }
 
+    PieceType choice=promotionFromChar(static_cast<char>(key));
+    if(choice==EMPTY_P){
+        status="Press Q, R, B, or N to promote.";
+        InvalidateRect(hwnd,nullptr,TRUE);
+        return;
+    }
+
+    for(const Move& m:pendingPromotionMoves){
+        if(m.promo==choice){
+            pendingPromotionMoves.clear();
+            applyMove(m);
+            return;
+        }
+    }
+}
+
+void WindowChessGame::applyMove(const Move& m){
+    string played=board.notation(m);
+    board.applyMove(m);
+    selectedR=selectedC=-1;
+    selectedMoves.clear();
+    pendingPromotionMoves.clear();
+    if(twoPlayer) viewBottom=board.getTurn();
+    updateGameState(colorName((Color)(-(int)board.getTurn()))+" played "+played+".");
+
+    if(!gameOver&&!twoPlayer&&board.getTurn()!=humanColor){
+        makeAIMove();
+    }
+    InvalidateRect(hwnd,nullptr,TRUE);
+}
+
+void WindowChessGame::makeAIMove(){
+    if(gameOver) return;
+    AIPlayer ai(board.getTurn(),aiDepth);
+    Move m=ai.getMove(board);
+    if(m.isResign()){
+        gameOver=true;
+        status="AI has no legal moves.";
+        return;
+    }
+    string played=board.notation(m);
+    board.applyMove(m);
+    status="AI played "+played+". Your turn.";
+    updateGameState(status);
+}
+
+void WindowChessGame::updateGameState(const string& prefix){
+    Color cur=board.getTurn();
+    auto legal=board.legalMoves(cur);
+    if(legal.empty()){
+        gameOver=true;
+        if(board.inCheck(cur))
+            status="CHECKMATE! "+colorName((Color)(-(int)cur))+" wins.";
+        else
+            status="STALEMATE! Draw.";
+        MessageBox(hwnd,status.c_str(),"Game over",MB_OK|MB_ICONINFORMATION);
+        return;
+    }
+
+    status=prefix+" "+colorName(cur)+" to move.";
+    if(board.inCheck(cur)) status+=" CHECK!";
+}
+
+int WindowChessGame::run(){
+    setup();
+    if(!createWindow()){
+        cerr<<"Could not create graphics window.\n";
+        return 1;
+    }
+    ShowWindow(hwnd,SW_SHOW);
+    UpdateWindow(hwnd);
+
+    MSG msg{};
+    while(GetMessage(&msg,nullptr,0,0)>0){
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return 0;
+}
+#endif
