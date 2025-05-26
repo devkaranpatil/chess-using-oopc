@@ -162,3 +162,64 @@ void WindowChessGame::drawPiece(HDC hdc, Piece* p, int x, int y){
         default: break;
     }
 
+    SelectObject(hdc,oldBrush);
+    SelectObject(hdc,oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
+}
+
+void WindowChessGame::drawBase(HDC hdc,int x,int y){
+    RoundRect(hdc,x+18,y+60,x+62,y+69,8,8);
+    RoundRect(hdc,x+25,y+51,x+55,y+62,8,8);
+}
+
+void WindowChessGame::drawPawn(HDC hdc,int x,int y){
+    Ellipse(hdc,x+29,y+15,x+51,y+37);
+    RoundRect(hdc,x+32,y+33,x+48,y+55,8,8);
+    drawBase(hdc,x,y);
+}
+
+void WindowChessGame::drawKnight(HDC hdc,int x,int y){
+    POINT body[]={{24+x,58+y},{31+x,28+y},{45+x,15+y},{58+x,23+y},{50+x,32+y},{58+x,45+y},{44+x,43+y},{39+x,58+y}};
+    Polygon(hdc,body,8);
+    Ellipse(hdc,x+44,y+23,x+49,y+28);
+    drawBase(hdc,x,y);
+}
+
+void WindowChessGame::drawBishop(HDC hdc,int x,int y){
+    Ellipse(hdc,x+28,y+12,x+52,y+36);
+    POINT body[]={{40+x,31+y},{55+x,54+y},{25+x,54+y}};
+    Polygon(hdc,body,3);
+    MoveToEx(hdc,x+45,y+18,nullptr);
+    LineTo(hdc,x+34,y+31);
+    drawBase(hdc,x,y);
+}
+
+void WindowChessGame::drawRook(HDC hdc,int x,int y){
+    Rectangle(hdc,x+22,y+17,x+58,y+31);
+    Rectangle(hdc,x+24,y+27,x+56,y+55);
+    Rectangle(hdc,x+22,y+12,x+30,y+22);
+    Rectangle(hdc,x+36,y+12,x+44,y+22);
+    Rectangle(hdc,x+50,y+12,x+58,y+22);
+    drawBase(hdc,x,y);
+}
+
+void WindowChessGame::drawQueen(HDC hdc,int x,int y){
+    Ellipse(hdc,x+18,y+13,x+30,y+25);
+    Ellipse(hdc,x+34,y+8,x+46,y+20);
+    Ellipse(hdc,x+50,y+13,x+62,y+25);
+    POINT crown[]={{22+x,27+y},{30+x,50+y},{50+x,50+y},{58+x,27+y},{46+x,36+y},{40+x,24+y},{34+x,36+y}};
+    Polygon(hdc,crown,7);
+    drawBase(hdc,x,y);
+}
+
+void WindowChessGame::drawKing(HDC hdc,int x,int y){
+    MoveToEx(hdc,x+40,y+9,nullptr);
+    LineTo(hdc,x+40,y+27);
+    MoveToEx(hdc,x+32,y+17,nullptr);
+    LineTo(hdc,x+48,y+17);
+    Ellipse(hdc,x+27,y+26,x+53,y+50);
+    Rectangle(hdc,x+31,y+42,x+49,y+57);
+    drawBase(hdc,x,y);
+}
+#endif
